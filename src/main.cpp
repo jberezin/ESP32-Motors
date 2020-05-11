@@ -40,6 +40,58 @@ const char *host = "openMYR-esp32";
 
 udp_srv *UDP_server;
 
+// Water Sensor Code == begin
+
+#define uS_TO_S_FACTOR 1000000  //Conversion factor for micro seconds to seconds
+#define TIME_TO_SLEEP  15 //Time ESP32 will go to sleep (in seconds)
+//Define touch sensitivity. Greater the value, more the sensitivity.
+#define Threshold 40
+
+RTC_DATA_ATTR int bootCount = 0;
+void callback(){
+  //placeholder callback function
+}
+//Function that prints the reason by which ESP32 has been awaken from sleep
+void print_wakeup_reason(){
+  esp_sleep_wakeup_cause_t wakeup_reason;
+  wakeup_reason = esp_sleep_get_wakeup_cause();
+    log_i("Wakeup Reason: %d", wakeup_reason);
+  switch(wakeup_reason-1)
+  {
+    case 1  : Serial.println("Wakeup caused by external signal using RTC_IO"); break;
+    case 2  : Serial.println("Wakeup caused by external signal using RTC_CNTL"); break;
+    case 3  : Serial.println("Wakeup caused by timer"); break;
+    case 4  : Serial.println("Wakeup caused by touchpad"); break;
+    case 5  : Serial.println("Wakeup caused by ULP program"); break;
+    default : Serial.println("Wakeup was not caused by deep sleep"); break;
+  }
+}
+
+
+//Function that prints the touchpad by which ESP32 has been awaken from sleep
+void print_wakeup_touchpad(){
+ 
+  touch_pad_t touchPin;
+  touchPin = esp_sleep_get_touchpad_wakeup_status();
+
+  //log_i("TouchPin: %d", touchPin);
+  switch(touchPin)
+  {
+    case 0  : Serial.println("Touch detected on GPIO 4"); break;
+    case 1  : Serial.println("Touch detected on GPIO 0"); break;
+    case 2  : Serial.println("Touch detected on GPIO 2"); break;
+    case 3  : Serial.println("Touch detected on GPIO 15"); break;
+    case 4  : Serial.println("Touch detected on GPIO 13"); break;
+    case 5  : Serial.println("Touch detected on GPIO 12"); break;
+    case 6  : Serial.println("Touch detected on GPIO 14"); break;
+    case 7  : Serial.println("Touch detected on GPIO 27"); break;
+    case 8  : Serial.println("Touch detected on GPIO 33"); break;
+    case 9  : Serial.println("Touch detected on GPIO 32"); break;
+    default : Serial.println("Wakeup not by touchpad"); break;
+  }
+}
+// Water Sensor Code == end
+
 void setup()
 {
     esp_err_t err;
@@ -47,6 +99,7 @@ void setup()
     Serial.begin(115200);
     digitalWrite(STATUSLEDPIN, HIGH);
     delay(200);
+    /*
     err = WifiController::init();
     if (err) log_i("Error: %s, #%u", esp_err_to_name(err), err);
     WebServer::init();
@@ -58,7 +111,7 @@ void setup()
     UDP_server = new udp_srv();
     UDP_server->begin();
 
-    /*use mdns for host name resolution*/
+    //use mdns for host name resolution 
     if (!MDNS.begin(host))
     { 
         log_e("Error setting up MDNS responder!");
@@ -106,14 +159,42 @@ void setup()
         });
     ArduinoOTA.setHostname(host);
     ArduinoOTA.begin();
-
+*/
     digitalWrite(STATUSLEDPIN, LOW);
+// begin water sensor code
+    	//Increment boot number and print it every reboot
+	++bootCount;
+	log_i("Boot Number: %d", bootCount);
+     //Print the wakeup reason for ESP32 and touchpad too
+  print_wakeup_reason();
+  print_wakeup_touchpad();
+
+  //Setup interrupt on Touch Pad 3 (GPIO15)
+  touchAttachInterrupt(T3, callback, Threshold);
+
+  //Configure Touchpad as wakeup source
+  esp_sleep_enable_touchpad_wakeup();
+   
+  	//Set timer to 5 seconds
+	esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
+	Serial.println("Setup ESP32 to sleep for every " + String(TIME_TO_SLEEP) +
+	" Seconds");
+
+  //Go to sleep now
+  esp_deep_sleep_start();
+    	 
+// end water sensor code    
 }
 
 void loop()
 {
     delay(1000);
-    ArduinoOTA.handle();
-    UDP_server->prompt_broadcast();
+    log_i("looping\n");
+  //  ArduinoOTA.handle();
+  //  UDP_server->prompt_broadcast();
+	 
+    // check sensor pin
+
+ 
     //log_i("OpBuffer Commands space in queue 1: %d", OpBuffer::getInstance()->opBufferCapacity(1));
 }
